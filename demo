@@ -1,0 +1,29 @@
+##declare some machinine parameters
+f_plunge=4  ##plunge fead rate IPM
+f_fin=5     ##finishing feed rate rate IPM
+fin_leave=.01 ##stock to leave for finishing pass on sides
+offset=.25     ## stepover distance in inches
+total_depth=.7  ## total depth of pocket in inches
+doc_per_pass=.1  ## goal depth of cut per pass
+fin_tool_chg='y' ## change tools for final finishing pass y/n
+fin_tool_leave=.05 ## stock to leave for finishing pass on floor of pocket
+fin_tool_offset=.25 ## stepover distance for finishing tool
+fin_tool_f_plunge=f_plunge ## finishing tool plunge rate
+f_cut=10
+
+
+x_point_arr2=[-10,-10,-14.7,-14.7] ## x values that define pocket
+y_point_arr2=[-.5,-2.47,-1.845,-.5] ## y values that define pocket
+incycles=1  ## number of cycles to spiral in on pocket ---adjust this manually to get full cleanup of pocket- beware bottlenecks in pocket shape
+fin_incycles=3 ## number of cycles to spiral in on pocket---adjust this manually to get full cleanup of pocket- beware bottlenecks in pocket shape
+
+## the function which returns gcode string
+PATH_light1=getToolPathIncycZIndexFinTool(x_point_arr2,y_point_arr2,total_depth,doc_per_pass,f_plunge,f_cut,offset,fin_leave,f_fin,incycles,fin_incycles,fin_tool_chg,fin_tool_leave,fin_tool_offset,fin_tool_f_plunge)
+
+
+
+gcode=""
+gcode+=PATH_light1
+gcode+="G01Z1.0F10\n"
+
+print(gcode)
