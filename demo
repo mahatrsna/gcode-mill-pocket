@@ -1,3 +1,5 @@
+import gcode_func
+
 ##declare some machinine parameters
 f_plunge=4  ##plunge fead rate IPM
 f_fin=5     ##finishing feed rate rate IPM
