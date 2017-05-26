@@ -1,0 +1,108 @@
+import math
+def getOffsetPoints(x_pnt,y_point_arr,offset):
+    k=0
+    pnts=len(x_pnt)
+    x_new_arr=[""]*pnts
+    y_new_arr=[""]*pnts
+    x_area_arr=[]
+    y_area_arr=[]
+    theta1_arr=[]
+    theta2_arr=[]
+    phi_arr=[]
+    retarr=[]
+    for y_curr in y_point_arr:
+        if(k==0):
+            theta1=math.atan2(y_point_arr[k]-y_point_arr[len(y_point_arr)-1],x_pnt[k]-x_pnt[len(y_point_arr)-1])
+        else:
+            theta1=math.atan2(y_point_arr[k]-y_point_arr[k-1],x_pnt[k]-x_pnt[k-1])
+        if(k==len(y_point_arr)-1):
+            theta2=math.atan2(y_point_arr[k]-y_point_arr[0],x_pnt[k]-x_pnt[0])
+        else:
+            theta2=math.atan2(y_point_arr[k]-y_point_arr[k+1],x_pnt[k]-x_pnt[k+1])
+        alpha=(theta2-theta1)
+        if(alpha<0):
+            alpha=alpha+2*math.pi
+        if(alpha>math.pi):
+            l=offset
+        else:
+            l=round(offset/math.sin(alpha/2),10)
+        final_phi=round(math.pi+theta2-alpha/2,10)
+        x_off=round(x_pnt[k]+l*math.cos(final_phi),4)
+        y_off=round(y_point_arr[k]+l*math.sin(final_phi),4)
+        x_area_arr.append(round(x_pnt[k]+2*l*math.cos(final_phi),4))
+        y_area_arr.append(round(y_point_arr[k]+2*l*math.sin(final_phi),4))
+        phi_arr.append(final_phi)
+        theta1_arr.append(theta1)
+        theta2_arr.append(theta2)
+        if(alpha<math.pi):
+            x_new_arr[k]=x_off
+            y_new_arr[k]=y_off
+        if k>len(y_point_arr)-1:
+            break
+        k+=1
+    i=0
+    for val in x_new_arr:
+        if(val==""):
+            y1=y_new_arr[i-1]-math.tan(theta1_arr[i])*x_new_arr[i-1]
+            y2=y_new_arr[i+1]-math.tan(theta2_arr[i])*x_new_arr[i+1]
+            xrep=(y2-y1)/(math.tan(theta1_arr[i])-math.tan(theta2_arr[i]))
+            yrep=math.tan(theta1_arr[i])*xrep+y1
+            x_new_arr[i]=round(xrep,4)
+            y_new_arr[i]=round(yrep,4)
+        i+=1
+    retarr.append(x_new_arr)
+    retarr.append(y_new_arr)
+    return retarr
+
+
+def getToolPathFromPoints(x_points,y_points,depth,f_cut,):
+    k=0
+    GCODE=""
+    try:
+      steps
+    except NameError:
+      steps=1
+    else:
+      steps=steps   
+    for x in x_points:
+        GCODE+="G01X"+str(round(x_points[k],4))+"Y"+str(round(y_points[k],4))+"Z-"+str(round(depth*steps,4))+"F"+str(f_cut)+"; pnt "+str(k)+" to "+str(k+1)+"\n"
+        k+=1
+    GCODE+="G01X"+str(round(x_points[0],4))+"Y"+str(round(y_points[0],4))+"Z-"+str(round(depth*steps,4))+"F"+str(f_cut)+"; pnt "+str(len(x_points))+" to 1\n"
+    return GCODE
+
+def getToolPathWithIncycles(x_points,y_points,depth,f_cut,offset,incycles):
+    path=""
+    new_pnts=[]
+    new_pnts.append(x_points)
+    new_pnts.append(y_points)
+    incycles=incycles+1
+    for reps in range(1,incycles):
+        new_pnts=getOffsetPoints(new_pnts[0],new_pnts[1],offset)
+        path+=getToolPathFromPoints(new_pnts[0],new_pnts[1],depth,f_cut)
+    return path
+    
+def getToolPathWithIncyclesAndZIndex(x_points_init,y_points_init,total_depth,max_depth_per_pass,f_plunge,f_cut,offset,fin_leave,f_fin,incycles,z_beg,withfincut):
+    x_points=getOffsetPoints(x_points_init,y_points_init,fin_leave)[0]
+    y_points=getOffsetPoints(x_points_init,y_points_init,fin_leave)[1]
+    z_cycs=math.ceil((total_depth+z_beg-fin_leave)/max_depth_per_pass)                
+    doc_perpass=round((total_depth+z_beg-fin_leave)/z_cycs,4)    
+    GCODE=""
+    for cycles in range(1,z_cycs+1):
+        doc=round(doc_perpass*cycles,4)-z_beg
+        GCODE+="G01X"+str(getOffsetPoints(x_points,y_points,offset)[0][0])+"Y"+str(getOffsetPoints(x_points,y_points,offset)[1][0])+"F"+str(f_cut)+"; RETURN TO PLUNGE POINT\n"
+        GCODE+="G01X"+str(getOffsetPoints(x_points,y_points,offset)[0][0])+"Y"+str(getOffsetPoints(x_points,y_points,offset)[1][0])+"Z-"+str(doc)+"F"+str(f_plunge)+"; DOWN TO CURRENT CUT DEPTH OF "+str(doc)+" in \n"
+        GCODE+=getToolPathWithIncycles(x_points,y_points,doc,f_cut,offset,incycles)
+    if(withfincut=='y'):
+        GCODE+=";## FINISH PASS AT "+str(total_depth)+" DEPTH\n"
+        GCODE+=getToolPathWithIncycles(x_points_init,y_points_init,total_depth,f_fin,offset,incycles)
+    return GCODE
+
+def getToolPathIncycZIndexFinTool(x_points_init,y_points_init,total_depth,max_depth_per_pass,f_plunge,f_cut,offset,fin_leave,f_fin,incycles,fin_incycles,fin_tool_chg,fin_tool_leave,fin_tool_offset,fin_tool_f_plunge):
+    if(fin_tool_chg=='y'):
+        rough_depth=total_depth-fin_tool_leave
+        pathcode=getToolPathWithIncyclesAndZIndex(x_points_init,y_points_init,rough_depth,max_depth_per_pass,f_plunge,f_cut,offset,fin_leave,f_fin,incycles,0,'n')
+        pathcode+="\n\n\n\n;########  INSERT TOOL CHANGE HERE #######\n\n\n\n"
+        pathcode+=getToolPathWithIncyclesAndZIndex(x_points_init,y_points_init,total_depth,doc_per_pass,fin_tool_f_plunge,f_cut,fin_tool_offset,fin_leave,f_fin,fin_incycles,-rough_depth,'y')
+    else:
+        pathcode=getToolPathWithIncyclesAndZIndex(x_points_init,y_points_init,total_depth,max_depth_per_pass,f_plunge,f_cut,offset,fin_leave,f_fin,incycles,0,'y')
+    return pathcode
